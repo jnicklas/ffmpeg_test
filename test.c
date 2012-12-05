@@ -21,10 +21,7 @@ static int fill_yuv_image(uint8_t *data[4], int linesize[4],
 {
     int x, y;
 
-    check(data, "given incorrect data pointer");
-    check(data[0], "given incorrect data pointer 0");
-    check(data[1], "given incorrect data pointer 1");
-    check(data[2], "given incorrect data pointer 2");
+    check(data && data[0] && data[1] && data[2], "given incorrect data pointer");
     check(linesize && linesize[0] && linesize[1] && linesize[2], "given incorrect linesizes");
 
     /* Y */
@@ -56,6 +53,7 @@ int main(int argc, char **argv)
   AVCodecContext *c= NULL;
   AVFrame *frame;
   AVPacket pkt;
+  uint8_t endcode[] = { 0, 0, 1, 0xb7 };
 
   avcodec_register_all();
 
@@ -104,11 +102,20 @@ int main(int argc, char **argv)
     log_info("encoding it");
     res = avcodec_encode_video2(c, &pkt, frame, &got_output);
     check(res >= 0, "Error encoding frame");
+
+    if (got_output) {
+      printf("Write frame %3d (size=%5d)\n", i, pkt.size);
+      fwrite(pkt.data, 1, pkt.size, file);
+      av_free_packet(&pkt);
+    }
   }
 
   log_info("done");
 
+
+  fwrite(endcode, 1, sizeof(endcode), file);
   fclose(file);
+
   avcodec_close(c);
   av_free(c);
   av_freep(&frame->data[0]);
