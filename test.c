@@ -11,35 +11,11 @@
 #include <libavutil/imgutils.h>
 #include <libavutil/mathematics.h>
 #include <libavutil/samplefmt.h>
+#include "lavfutils.h"
 
 #define INBUF_SIZE 4096
 #define AUDIO_INBUF_SIZE 20480
 #define AUDIO_REFILL_THRESH 4096
-
-static int fill_yuv_image(uint8_t *data[4], int linesize[4],
-                           int width, int height, int frame_index)
-{
-    int x, y;
-
-    check(data && data[0] && data[1] && data[2], "given incorrect data pointer");
-    check(linesize && linesize[0] && linesize[1] && linesize[2], "given incorrect linesizes");
-
-    /* Y */
-    for (y = 0; y < height; y++)
-        for (x = 0; x < width; x++)
-            data[0][y * linesize[0] + x] = x + y + frame_index * 3;
-
-    /* Cb and Cr */
-    for (y = 0; y < height / 2; y++) {
-        for (x = 0; x < width / 2; x++) {
-            data[1][y * linesize[1] + x] = 128 + y + frame_index * 2;
-            data[2][y * linesize[2] + x] = 64 + x + frame_index * 5;
-        }
-    }
-    return 1;
-error:
-    return 0;
-}
 
 int main(int argc, char **argv)
 {
@@ -86,8 +62,11 @@ int main(int argc, char **argv)
   bufsize = av_image_alloc(frame->data, linesize, width, height, pix_fmt, 1);
   check(bufsize >= 0, "failed to allocate memory for video buffer");
 
+  res = ff_load_image(frame->data, linesize, &width, &height, &pix_fmt, "source/img0.jpg", NULL);
+  check(res >= 0, "failed to load image");
+
   log_info("generating frames");
-  for (i = 0; i < 100; i++) {
+  for (i = 0; i < 50; i++) {
     av_init_packet(&pkt);
     pkt.data = NULL;
     pkt.size = 0;
@@ -95,16 +74,12 @@ int main(int argc, char **argv)
     /* generate synthetic video */
     frame->pts = i;
 
-    log_info("filling image");
-    res = fill_yuv_image(frame->data, linesize, width, height, i);
-    check(res, "failed to generate image");
-
     log_info("encoding it");
     res = avcodec_encode_video2(c, &pkt, frame, &got_output);
     check(res >= 0, "Error encoding frame");
 
     if (got_output) {
-      printf("Write frame %3d (size=%5d)\n", i, pkt.size);
+      log_info("Write frame %3d (size=%5d)", i, pkt.size);
       fwrite(pkt.data, 1, pkt.size, file);
       av_free_packet(&pkt);
     }

@@ -13,4 +13,4 @@ LDLIBS := $(shell pkg-config --libs $(FFMPEG_LIBS)) $(LDLIBS)
 
 all: test
 
-test: test.o
+test: test.o lavfutils.o
