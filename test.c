@@ -70,6 +70,21 @@ error:
   return -1;
 }
 
+int write_image_to_file(FILE *file, const char *filename, int count, AVFrame *frame, AVCodecContext *codec_context, AVPacket *pkt) {
+  int res, i;
+  res = load_image_into_frame(frame, filename);
+  check(res >= 0, "failed to load image into frame");
+
+  for (i = 0; i < count; i++) {
+    res = write_frame_to_file(file, frame, codec_context, pkt);
+    check(res >= 0, "unable to write frame to file");
+  }
+
+  return 0;
+error:
+  return -1;
+}
+
 int write_delayed_frames_to_file(FILE *file, AVFrame *frame, AVCodecContext *codec_context, AVPacket *pkt) {
   int res, got_output;
 
@@ -141,7 +156,7 @@ int main(int argc, char **argv)
 {
   const char *filename = "test.mpg";
   FILE *file;
-  int i, res, retval=-1;
+  int res, retval=-1;
   AVCodecContext *codec_context= NULL;
   AVFrame *frame;
   AVPacket pkt;
@@ -156,21 +171,12 @@ int main(int argc, char **argv)
   frame = get_av_frame(codec_context);
   check(frame != NULL, "unable to allocate frame");
 
-  res = load_image_into_frame(frame, "source/img0.jpg");
-  check(res >= 0, "failed to load image into frame");
+  res = write_image_to_file(file, "source/img0.jpg", 25, frame, codec_context, &pkt);
+  res = write_image_to_file(file, "source/img1.jpg", 50, frame, codec_context, &pkt);
+  res = write_image_to_file(file, "source/img2.jpg", 10, frame, codec_context, &pkt);
+  res = write_image_to_file(file, "source/img3.jpg", 10, frame, codec_context, &pkt);
+  check(res >= 0, "failed to write image to file");
 
-  for (i = 0; i < 50; i++) {
-    res = write_frame_to_file(file, frame, codec_context, &pkt);
-    check(res >= 0, "unable to write frame to file");
-  }
-
-  res = load_image_into_frame(frame, "source/img1.jpg");
-  check(res >= 0, "failed to load image into frame");
-
-  for (i = 50; i < 100; i++) {
-    res = write_frame_to_file(file, frame, codec_context, &pkt);
-    check(res >= 0, "unable to write frame to file");
-  }
 
   res = write_delayed_frames_to_file(file, frame, codec_context, &pkt);
   check(res >= 0, "failed to write delayed frames");
