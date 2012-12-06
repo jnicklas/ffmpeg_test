@@ -37,7 +37,6 @@ int load_image_into_frame(AVFrame *frame, const char *filename)
         sws_flags, NULL, NULL, NULL);
     check(sws_ctx, "unable to initialize scaling context");
 
-    log_info("converting between pixel formats %d and %d", source_fmt, frame->format);
     sws_scale(sws_ctx,
         (const uint8_t * const *)image_data, linesize,
         0, frame->height, frame->data, frame->linesize);
@@ -71,23 +70,31 @@ error:
   return -1;
 }
 
-int main(int argc, char **argv)
-{
-  int width = 320, height = 240;
-  enum AVPixelFormat pix_fmt = AV_PIX_FMT_YUV420P;
-  const char *filename = "test.mpg";
-  FILE *file;
-  int i, res, got_output;
-  AVCodec *codec;
-  AVCodecContext *codec_context= NULL;
-  AVFrame *frame;
-  AVPacket pkt;
-  uint8_t endcode[] = { 0, 0, 1, 0xb7 };
+int write_delayed_frames_to_file(FILE *file, AVFrame *frame, AVCodecContext *codec_context, AVPacket *pkt) {
+  int res, got_output;
 
+  for (got_output = 1; got_output;) {
+    res = avcodec_encode_video2(codec_context, pkt, NULL, &got_output);
+    check(res >= 0, "Error encoding frame");
+
+    if (got_output) {
+      fwrite(pkt->data, 1, pkt->size, file);
+      av_free_packet(pkt);
+    }
+  }
+
+  return 0;
+error:
+  return -1;
+}
+
+AVCodecContext *get_codec_context(width, height, fps)
+{
+  int res;
   avcodec_register_all();
 
-  file = fopen(filename, "wb");
-  check(file != NULL, "could not open destination file %s", filename);
+  AVCodec *codec;
+  AVCodecContext *codec_context = NULL;
 
   codec = avcodec_find_encoder(AV_CODEC_ID_MPEG1VIDEO);
   check(codec, "unable to find codec");
@@ -98,13 +105,34 @@ int main(int argc, char **argv)
   codec_context->bit_rate = 400000;
   codec_context->width = width;
   codec_context->height = height;
-  codec_context->time_base= (AVRational){1,25};
+  codec_context->time_base= (AVRational){1,fps};
   codec_context->gop_size = 10;
   codec_context->max_b_frames=1;
-  codec_context->pix_fmt = pix_fmt;
+  codec_context->pix_fmt = AV_PIX_FMT_YUV420P;
 
   res = avcodec_open2(codec_context, codec, NULL);
   check(res >= 0, "could not open codec");
+
+  return codec_context;
+error:
+  return NULL;
+}
+
+int main(int argc, char **argv)
+{
+  const char *filename = "test.mpg";
+  FILE *file;
+  int i, res;
+  AVCodecContext *codec_context= NULL;
+  AVFrame *frame;
+  AVPacket pkt;
+  uint8_t endcode[] = { 0, 0, 1, 0xb7 };
+
+  codec_context = get_codec_context(320, 240, 25);
+  check(codec_context, "unable to obtain encoding context");
+
+  file = fopen(filename, "wb");
+  check(file != NULL, "could not open destination file %s", filename);
 
   frame = avcodec_alloc_frame();
   frame->height = codec_context->height;
@@ -120,31 +148,20 @@ int main(int argc, char **argv)
   check(res >= 0, "failed to load image into frame");
 
   for (i = 0; i < 50; i++) {
-    write_frame_to_file(file, frame, codec_context, &pkt);
+    res = write_frame_to_file(file, frame, codec_context, &pkt);
+    check(res >= 0, "unable to write frame to file");
   }
 
   res = load_image_into_frame(frame, "source/img1.jpg");
   check(res >= 0, "failed to load image into frame");
 
   for (i = 50; i < 100; i++) {
-    write_frame_to_file(file, frame, codec_context, &pkt);
+    res = write_frame_to_file(file, frame, codec_context, &pkt);
+    check(res >= 0, "unable to write frame to file");
   }
 
-  log_info("get delayed frames");
-  /* get the delayed frames */
-  for (got_output = 1; got_output; i++) {
-    log_info("delayed frame %d", i);
-    res = avcodec_encode_video2(codec_context, &pkt, NULL, &got_output);
-    check(res >= 0, "Error encoding frame");
-
-    if (got_output) {
-      fwrite(pkt.data, 1, pkt.size, file);
-      av_free_packet(&pkt);
-    }
-  }
-
-  log_info("done");
-
+  res = write_delayed_frames_to_file(file, frame, codec_context, &pkt);
+  check(res >= 0, "failed to write delayed frames");
 
   fwrite(endcode, 1, sizeof(endcode), file);
   fclose(file);
