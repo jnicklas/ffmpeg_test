@@ -122,7 +122,7 @@ int main(int argc, char **argv)
 {
   const char *filename = "test.mpg";
   FILE *file;
-  int i, res;
+  int i, res, retval=-1;
   AVCodecContext *codec_context= NULL;
   AVFrame *frame;
   AVPacket pkt;
@@ -164,14 +164,8 @@ int main(int argc, char **argv)
   check(res >= 0, "failed to write delayed frames");
 
   fwrite(endcode, 1, sizeof(endcode), file);
-  fclose(file);
 
-  avcodec_close(codec_context);
-  av_free(codec_context);
-  av_freep(&frame->data[0]);
-  av_free(frame);
-  return 0;
-
+  retval = 0;
 error:
   if (file)
     fclose(file);
@@ -183,5 +177,5 @@ error:
     av_freep(&frame->data[0]);
     av_free(frame);
   }
-  return -1;
+  return retval;
 }
