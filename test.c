@@ -17,14 +17,20 @@
 #define AUDIO_INBUF_SIZE 20480
 #define AUDIO_REFILL_THRESH 4096
 
+static int sws_flags = SWS_BICUBIC;
+
 int main(int argc, char **argv)
 {
+  static struct SwsContext *sws_ctx;
+  uint8_t *image_data[4];
   int linesize[4];
+  int source_width, source_height;
   int width = 320, height = 240;
   enum AVPixelFormat pix_fmt = AV_PIX_FMT_YUV420P;
+  enum AVPixelFormat source_fmt;
   const char *filename = "test.mpg";
   FILE *file;
-  int bufsize, i, res, got_output;
+  int i, res, got_output;
   AVCodec *codec;
   AVCodecContext *c= NULL;
   AVFrame *frame;
@@ -55,15 +61,28 @@ int main(int argc, char **argv)
 
   frame = avcodec_alloc_frame();
   check(frame, "unable to allocate frame");
-  frame->format = c->pix_fmt;
-  frame->width  = c->width;
-  frame->height = c->height;
 
-  bufsize = av_image_alloc(frame->data, linesize, width, height, pix_fmt, 1);
-  check(bufsize >= 0, "failed to allocate memory for video buffer");
-
-  res = ff_load_image(frame->data, linesize, &width, &height, &pix_fmt, "source/img0.jpg", NULL);
+  res = ff_load_image(image_data, linesize, &source_width, &source_height, &source_fmt, "source/img0.jpg", NULL);
   check(res >= 0, "failed to load image");
+
+  res = av_image_alloc(frame->data, frame->linesize, c->width, c->height, c->pix_fmt, 1);
+  check(res >= 0, "failed to allocate memory for video frame");
+
+  frame->height = c->height;
+  frame->width = c->width;
+  frame->format = c->pix_fmt;
+
+  if (source_fmt != c->pix_fmt) {
+    sws_ctx = sws_getContext(source_width, source_height, source_fmt,
+        c->width, c->height, c->pix_fmt,
+        sws_flags, NULL, NULL, NULL);
+    check(sws_ctx, "unable to initialize scaling context");
+
+    log_info("converting between pixel formats %d and %d", source_fmt, c->pix_fmt);
+    sws_scale(sws_ctx,
+        (const uint8_t * const *)image_data, linesize,
+        0, c->height, frame->data, frame->linesize);
+  }
 
   log_info("generating frames");
   for (i = 0; i < 50; i++) {
@@ -74,12 +93,24 @@ int main(int argc, char **argv)
     /* generate synthetic video */
     frame->pts = i;
 
-    log_info("encoding it");
     res = avcodec_encode_video2(c, &pkt, frame, &got_output);
     check(res >= 0, "Error encoding frame");
 
     if (got_output) {
-      log_info("Write frame %3d (size=%5d)", i, pkt.size);
+      fwrite(pkt.data, 1, pkt.size, file);
+      av_free_packet(&pkt);
+    }
+  }
+
+  log_info("get delayed frames");
+
+  /* get the delayed frames */
+  for (got_output = 1; got_output; i++) {
+    log_info("delayed frame %d", i);
+    res = avcodec_encode_video2(c, &pkt, NULL, &got_output);
+    check(res >= 0, "Error encoding frame");
+
+    if (got_output) {
       fwrite(pkt.data, 1, pkt.size, file);
       av_free_packet(&pkt);
     }
@@ -95,11 +126,13 @@ int main(int argc, char **argv)
   av_free(c);
   av_freep(&frame->data[0]);
   av_free(frame);
+  av_freep(&image_data);
   return 0;
 
 error:
   if (file)
     fclose(file);
+  av_freep(&image_data);
   if (c) {
     avcodec_close(c);
     av_free(c);
