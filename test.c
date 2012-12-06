@@ -50,6 +50,27 @@ error:
   return retval;
 }
 
+int write_frame_to_file(FILE *file, AVFrame *frame, AVCodecContext *codec_context, AVPacket *pkt) {
+  int res, got_output;
+  av_init_packet(pkt);
+  pkt->data = NULL;
+  pkt->size = 0;
+
+  /* generate synthetic video */
+  frame->pts += 1;
+
+  res = avcodec_encode_video2(codec_context, pkt, frame, &got_output);
+  check(res >= 0, "Error encoding frame");
+
+  if (got_output) {
+    fwrite(pkt->data, 1, pkt->size, file);
+    av_free_packet(pkt);
+  }
+  return 0;
+error:
+  return -1;
+}
+
 int main(int argc, char **argv)
 {
   int width = 320, height = 240;
@@ -89,6 +110,7 @@ int main(int argc, char **argv)
   frame->height = codec_context->height;
   frame->width = codec_context->width;
   frame->format = codec_context->pix_fmt;
+  frame->pts = 0;
   check(frame, "unable to allocate frame");
 
   res = av_image_alloc(frame->data, frame->linesize, frame->width, frame->height, frame->format, 1);
@@ -97,47 +119,18 @@ int main(int argc, char **argv)
   res = load_image_into_frame(frame, "source/img0.jpg");
   check(res >= 0, "failed to load image into frame");
 
-  log_info("generating frames");
   for (i = 0; i < 50; i++) {
-    av_init_packet(&pkt);
-    pkt.data = NULL;
-    pkt.size = 0;
-
-    /* generate synthetic video */
-    frame->pts = i;
-
-    res = avcodec_encode_video2(codec_context, &pkt, frame, &got_output);
-    check(res >= 0, "Error encoding frame");
-
-    if (got_output) {
-      fwrite(pkt.data, 1, pkt.size, file);
-      av_free_packet(&pkt);
-    }
+    write_frame_to_file(file, frame, codec_context, &pkt);
   }
 
   res = load_image_into_frame(frame, "source/img1.jpg");
   check(res >= 0, "failed to load image into frame");
 
-  log_info("generating frames");
   for (i = 50; i < 100; i++) {
-    av_init_packet(&pkt);
-    pkt.data = NULL;
-    pkt.size = 0;
-
-    /* generate synthetic video */
-    frame->pts = i;
-
-    res = avcodec_encode_video2(codec_context, &pkt, frame, &got_output);
-    check(res >= 0, "Error encoding frame");
-
-    if (got_output) {
-      fwrite(pkt.data, 1, pkt.size, file);
-      av_free_packet(&pkt);
-    }
+    write_frame_to_file(file, frame, codec_context, &pkt);
   }
 
   log_info("get delayed frames");
-
   /* get the delayed frames */
   for (got_output = 1; got_output; i++) {
     log_info("delayed frame %d", i);
