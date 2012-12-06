@@ -118,6 +118,25 @@ error:
   return NULL;
 }
 
+AVFrame *get_av_frame(AVCodecContext *codec_context) {
+  int res;
+  AVFrame *frame;
+
+  frame = avcodec_alloc_frame();
+  check(frame != NULL, "unable to allocate frame");
+  frame->height = codec_context->height;
+  frame->width = codec_context->width;
+  frame->format = codec_context->pix_fmt;
+  frame->pts = 0;
+
+  res = av_image_alloc(frame->data, frame->linesize, frame->width, frame->height, frame->format, 1);
+  check(res >= 0, "failed to allocate memory for video frame");
+
+  return frame;
+error:
+  return NULL;
+}
+
 int main(int argc, char **argv)
 {
   const char *filename = "test.mpg";
@@ -129,20 +148,13 @@ int main(int argc, char **argv)
   uint8_t endcode[] = { 0, 0, 1, 0xb7 };
 
   codec_context = get_codec_context(320, 240, 25);
-  check(codec_context, "unable to obtain encoding context");
+  check(codec_context != NULL, "unable to obtain encoding context");
 
   file = fopen(filename, "wb");
   check(file != NULL, "could not open destination file %s", filename);
 
-  frame = avcodec_alloc_frame();
-  frame->height = codec_context->height;
-  frame->width = codec_context->width;
-  frame->format = codec_context->pix_fmt;
-  frame->pts = 0;
-  check(frame, "unable to allocate frame");
-
-  res = av_image_alloc(frame->data, frame->linesize, frame->width, frame->height, frame->format, 1);
-  check(res >= 0, "failed to allocate memory for video frame");
+  frame = get_av_frame(codec_context);
+  check(frame != NULL, "unable to allocate frame");
 
   res = load_image_into_frame(frame, "source/img0.jpg");
   check(res >= 0, "failed to load image into frame");
