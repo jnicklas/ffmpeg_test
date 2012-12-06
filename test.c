@@ -1,17 +1,8 @@
 #include <libavutil/imgutils.h>
-#include <libavutil/parseutils.h>
 #include <libswscale/swscale.h>
-#include <stdio.h>
 #include "dbg.h"
 
-#include <libavutil/opt.h>
-#include <libavcodec/avcodec.h>
-#include <libavutil/common.h>
 #include "lavfutils.h"
-
-#define INBUF_SIZE 4096
-#define AUDIO_INBUF_SIZE 20480
-#define AUDIO_REFILL_THRESH 4096
 
 static int sws_flags = SWS_BICUBIC;
 

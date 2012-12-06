@@ -18,7 +18,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "libavutil/imgutils.h"
+#include <libavutil/imgutils.h>
 #include "lavfutils.h"
 
 int ff_load_image(uint8_t *data[4], int linesize[4],
