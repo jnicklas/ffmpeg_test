@@ -22,7 +22,7 @@ int load_image_into_frame(AVFrame *frame, const char *filename)
   uint8_t *image_data[4];
   int linesize[4];
   int source_width, source_height;
-  enum AVPixelFormat source_fmt;
+  enum PixelFormat source_fmt;
 
   res = ff_load_image(image_data, linesize, &source_width, &source_height, &source_fmt, filename, NULL);
   check(res >= 0, "failed to load image");
@@ -119,7 +119,7 @@ AVCodecContext *get_codec_context(width, height, fps)
   codec_context->time_base= (AVRational){1,fps};
   codec_context->gop_size = 10;
   codec_context->max_b_frames=1;
-  codec_context->pix_fmt = AV_PIX_FMT_YUV420P;
+  codec_context->pix_fmt = PIX_FMT_YUV420P;
 
   res = avcodec_open2(codec_context, codec, NULL);
   check(res >= 0, "could not open codec");
