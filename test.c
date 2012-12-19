@@ -98,7 +98,7 @@ AVCodecContext *get_codec_context(width, height, fps)
   AVCodec *codec;
   AVCodecContext *codec_context = NULL;
 
-  codec = avcodec_find_encoder(AV_CODEC_ID_MPEG1VIDEO);
+  codec = avcodec_find_encoder(CODEC_ID_MPEG1VIDEO);
   check(codec, "unable to find codec");
 
   codec_context = avcodec_alloc_context3(codec);
