@@ -31,8 +31,8 @@ int load_image_into_frame(AVFrame *frame, const char *filename)
 
   retval = 0;
 error:
-  av_freep(image_data);
-  av_free(sws_ctx);
+  av_freep(&image_data[0]);
+  sws_freeContext(sws_ctx);
   return retval;
 }
 
@@ -142,10 +142,10 @@ error:
 int main(int argc, char **argv)
 {
   const char *filename = "test.mpg";
-  FILE *file;
+  FILE *file=NULL;
   int res, retval=-1;
   AVCodecContext *codec_context= NULL;
-  AVFrame *frame;
+  AVFrame *frame=NULL;
   AVPacket pkt;
   uint8_t endcode[] = { 0, 0, 1, 0xb7 };
 
@@ -163,7 +163,6 @@ int main(int argc, char **argv)
   res = write_image_to_file(file, "source/img2.jpg", 10, frame, codec_context, &pkt);
   res = write_image_to_file(file, "source/img3.jpg", 10, frame, codec_context, &pkt);
   check(res >= 0, "failed to write image to file");
-
 
   res = write_delayed_frames_to_file(file, frame, codec_context, &pkt);
   check(res >= 0, "failed to write delayed frames");
